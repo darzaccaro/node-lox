@@ -198,6 +198,21 @@ function scanTokens(source: string) {
                 tokens.push({ type: TokenType.STRING, line: lineStart, literal: source.slice(i + 1, i + length) });
                 length++;
                 break;
+            case "0":
+            case "1":
+            case "2":
+            case "3":
+            case "4":
+            case "5":
+            case "6":
+            case "7":
+            case "8":
+            case "9":
+                let ii = i;
+                for (; isDigitOrDot(source[ii]); ii++) {}
+                tokens.push({ type: TokenType.NUMBER, line, literal: Number(source.slice(i, ii)) });
+                length = ii;
+                break;
             default:
                 report(line, "", "failed to scan token");
                 process.exit(65);
@@ -206,4 +221,23 @@ function scanTokens(source: string) {
     }
     tokens.push({ type: TokenType.EOF, line });
     return tokens;
+}
+
+function isDigitOrDot(char: string | undefined) {
+    switch (char) {
+        case "0":
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+        case "6":
+        case "7":
+        case "8":
+        case "9":
+        case ".":
+            return true;
+        default:
+            return false;
+    }
 }
