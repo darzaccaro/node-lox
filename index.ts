@@ -100,6 +100,24 @@ interface Token {
 }
 
 function scanTokens(source: string) {
+    const keywords: { [key: string]: string } = {
+        AND: "and",
+        CLASS: "class",
+        ELSE: "else",
+        FALSE: "false",
+        FUN: "fun",
+        FOR: "for",
+        IF: "if",
+        NIL: "nil",
+        OR: "or",
+        PRINT: "print",
+        RETURN: "return",
+        SUPER: "super",
+        THIS: "this",
+        TRUE: "true",
+        VAR: "var",
+        WHILE: "while",
+    };
     const tokens: Token[] = [];
     let line = 1;
     for (let i = 0; i < source.length; ) {
@@ -198,24 +216,28 @@ function scanTokens(source: string) {
                 tokens.push({ type: TokenType.STRING, line: lineStart, literal: source.slice(i + 1, i + length) });
                 length++;
                 break;
-            case "0":
-            case "1":
-            case "2":
-            case "3":
-            case "4":
-            case "5":
-            case "6":
-            case "7":
-            case "8":
-            case "9":
-                let ii = i;
-                for (; isDigitOrDot(source[ii]); ii++) {}
-                tokens.push({ type: TokenType.NUMBER, line, literal: Number(source.slice(i, ii)) });
-                length = ii;
-                break;
             default:
-                report(line, "", "failed to scan token");
-                process.exit(65);
+                if (isDigit(source[i])) {
+                    let ii = i;
+                    for (; isDigitOrDot(source[ii]); ii++) {}
+                    const literal = source.slice(i, ii);
+                    tokens.push({ type: TokenType.NUMBER, line, literal: Number(literal) });
+                    length = literal.length;
+                } else if (isAlpha(source[i])) {
+                    let ii = i;
+                    for (; isAlphaNumeric(source[ii]); ii++) {}
+                    const literal = source.slice(i, ii);
+                    length = literal.length;
+                    if (keywords[literal.toUpperCase()]) {
+                        tokens.push({ type: keywords[literal.toUpperCase()] as TokenType, line });
+                    } else {
+                        report(line, "", "failed to scan token");
+                        process.exit(65);
+                    }
+                } else {
+                    report(line, "", "failed to scan token");
+                    process.exit(65);
+                }
         }
         i += length;
     }
@@ -223,21 +245,20 @@ function scanTokens(source: string) {
     return tokens;
 }
 
+function isDigit(char: string | undefined) {
+    if (!char) return false;
+    return char.match(/\d/);
+}
 function isDigitOrDot(char: string | undefined) {
-    switch (char) {
-        case "0":
-        case "1":
-        case "2":
-        case "3":
-        case "4":
-        case "5":
-        case "6":
-        case "7":
-        case "8":
-        case "9":
-        case ".":
-            return true;
-        default:
-            return false;
-    }
+    if (!char) return false;
+    return char.match(/[\d.]/);
+}
+
+function isAlpha(char: string | undefined) {
+    if (!char) return false;
+    return char.match(/[a-zA-Z_]/);
+}
+
+function isAlphaNumeric(char: string | undefined) {
+    return isAlpha(char) || isDigit(char);
 }
