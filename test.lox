@@ -1,18 +1,1 @@
-==
-==
-=
-// this is a comment
-!
-!=>=<
-"a string literal
-across 2 lines"
-22.12
-3
-4
-45.6
-// another comment tehe
-class
-else
-if for fun
-1234.56789
-
+1 + 2 + 3 == 6

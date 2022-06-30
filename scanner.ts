@@ -1,5 +1,5 @@
 import { isAlpha, isAlphaNumeric, isDigit, isDigitOrDot, Token, TokenType } from "./tokens";
-import { report } from "./error";
+import { die } from "./die";
 
 export function scan(source: string): Token[] {
     const keywords: { [key: string]: string } = {
@@ -109,7 +109,7 @@ export function scan(source: string): Token[] {
                 const lineStart = line;
                 for (let ii = i + 1; source[ii] != '"'; ii++) {
                     if (ii > source.length) {
-                        report(line, "", "unterminated string");
+                        die("scanner", "unterminated string", line);
                         process.exit(65);
                     }
                     if (source[ii] === "\n") line++;
@@ -133,11 +133,11 @@ export function scan(source: string): Token[] {
                     if (keywords[literal.toUpperCase()]) {
                         tokens.push({ type: keywords[literal.toUpperCase()] as TokenType, line });
                     } else {
-                        report(line, "", "failed to scan token");
+                        die("scanner", "failed to scan token", line);
                         process.exit(65);
                     }
                 } else {
-                    report(line, "", "failed to scan token");
+                    die("scanner", "failed to scan token", line);
                     process.exit(65);
                 }
         }

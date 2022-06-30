@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as readline from "readline";
 import { scan } from "./scanner";
+import { parse } from "./parser";
 
 const args = process.argv.slice(2);
 
@@ -37,6 +38,10 @@ async function runPrompt() {
 }
 
 function run(source: string) {
+    console.log("scanning source...");
     const tokens = scan(source);
-    console.log(tokens);
+    console.log("parsing tokens...");
+    console.log("tokens", tokens);
+    const ast = parse(tokens);
+    console.log("ast", ast);
 }
