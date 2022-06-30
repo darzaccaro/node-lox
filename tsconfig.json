@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+
+  },
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Strictest"
+}
