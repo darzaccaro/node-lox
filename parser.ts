@@ -25,10 +25,14 @@ class AstNode {
         }
         return root;
     }
-    print() {
-        console.log(this.value);
-        if (!this.children) return;
-        this.children.forEach((c) => c.print());
+    toString(): string {
+        if (this.value.literal) {
+            return `${this.value.literal}`;
+        } else if (this.children.length == 2) {
+            return `(${this.value.type} ${this.children[0].toString()} ${this.children[1].toString()})`;
+        } else {
+            return "";
+        }
     }
     pushChild(child?: AstNode) {
         if (child) {

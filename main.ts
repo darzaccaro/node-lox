@@ -43,5 +43,5 @@ function run(source: string) {
     console.log("parsing tokens...");
     console.log("tokens", tokens);
     const ast = parse(tokens);
-    console.log("ast", ast);
+    console.log(ast.toString());
 }
