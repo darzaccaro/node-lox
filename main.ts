@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as readline from "readline";
 import { scan } from "./scanner";
-import { parse } from "./parser";
+import { Parser } from "./parser";
 
 const args = process.argv.slice(2);
 
@@ -42,6 +42,6 @@ function run(source: string) {
     const tokens = scan(source);
     console.log("parsing tokens...");
     console.log("tokens", tokens);
-    const ast = parse(tokens);
-    console.log(ast.toString());
+    const parser = new Parser(tokens);
+    console.log(parser.expression().toString());
 }
