@@ -43,7 +43,8 @@ function run(source: string) {
     console.log("parsing tokens...");
     const parser = new Parser(tokens);
     console.log("evaluating expression...");
-    const expr = parser.expression();
-
-    console.log(expr.toString(), expr.evaluate());
+    const statements = parser.parse();
+    for (const statement of statements) {
+        statement.evaluate();
+    }
 }

@@ -2,8 +2,36 @@ import type { Token } from "./tokens";
 import { TokenType } from "./tokens";
 import { die } from "./die";
 
+type Stmt = ExprStmt | PrintStmt;
 type Expr = Literal | Unary | Binary | Grouping;
 type LiteralValue = string | number | true | false | null;
+
+class ExprStmt {
+    expression: Expr;
+    ending = ";";
+    constructor(expression: Expr) {
+        this.expression = expression;
+    }
+    toString = (): string => `${this.expression}${this.ending}`;
+    evaluate = (): null => {
+        this.expression.evaluate();
+        return null;
+    };
+}
+
+class PrintStmt {
+    keyword = "print";
+    expression: Expr;
+    ending = ";";
+    constructor(expression: Expr) {
+        this.expression = expression;
+    }
+    toString = (): string => `${this.keyword}${this.expression}${this.ending}`;
+    evaluate = (): null => {
+        console.log(this.expression.evaluate());
+        return null;
+    };
+}
 
 class Literal {
     value: LiteralValue;
@@ -80,6 +108,10 @@ class Grouping {
 }
 
 /* BNF grammar:
+ * program -> statement* EOF;
+ * statement -> exprStmt | printStmt;
+ * exprStmt -> expression ";";
+ * printStmt -> "print" expression ";";
  * expression -> equality;
  * equality -> comparison (( '==' | '!=') comparison)*;
  * comparison -> term (('>' | '>=' | '<' | '<=') term)*;
@@ -96,6 +128,29 @@ export class Parser {
         this.tokens = tokens;
         this.current = 0;
     }
+    parse = (): Stmt[] => {
+        const statements = [];
+        while (!this.isAtEnd()) {
+            statements.push(this.statement());
+        }
+        return statements;
+    };
+    statement = (): Stmt => {
+        if (this.match([TokenType.PRINT])) {
+            return this.printStmt();
+        }
+        return this.exprStmt();
+    };
+    printStmt = (): PrintStmt => {
+        const expr: Expr = this.expression();
+        this.consume(TokenType.SEMICOLON);
+        return new PrintStmt(expr);
+    };
+    exprStmt = (): ExprStmt => {
+        const expr: Expr = this.expression();
+        this.consume(TokenType.SEMICOLON);
+        return new ExprStmt(expr);
+    };
     expression = (): Expr => {
         return this.equality();
     };
