@@ -7,7 +7,7 @@ const environment = new Environment();
 
 type Decl = VarDecl | Stmt;
 type Stmt = ExprStmt | PrintStmt;
-type Expr = Primary | Unary | Binary | Grouping;
+type Expr = Literal | Variable | Unary | Binary | Grouping;
 export type LiteralValue = string | number | true | false | null;
 
 class VarDecl {
@@ -66,18 +66,25 @@ class PrintStmt {
     };
 }
 
-class Primary {
-    token: Token;
-    constructor(token: Token, isIdentifier = false) {
-        this.token = token;
+class Literal {
+    value: LiteralValue;
+    constructor(value: LiteralValue) {
+        this.value = value;
     }
-    toString = (): string => `${this.token.literal}`;
+    toString = (): string => `${this.value}`;
     evaluate = (): LiteralValue => {
-        if (this.token.type === TokenType.IDENTIFIER) {
-            return environment.get(this.token);
-        } else {
-            return this.token.literal;
-        }
+        return this.value;
+    };
+}
+
+class Variable {
+    identifier: Token;
+    constructor(token: Token) {
+        this.identifier = token;
+    }
+    toString = (): string => `${this.identifier.lexeme}`;
+    evaluate = (): LiteralValue => {
+        return environment.get(this.identifier);
     };
 }
 
@@ -254,16 +261,16 @@ export class Parser {
     };
 
     primary = (): Expr => {
-        if (this.match([TokenType.TRUE])) return new Primary(this.tokens[this.current - 1]);
-        if (this.match([TokenType.FALSE])) return new Primary(this.tokens[this.current - 1]);
-        if (this.match([TokenType.NIL])) return new Primary(this.tokens[this.current - 1]);
-        if (this.match([TokenType.NUMBER, TokenType.STRING])) return new Primary(this.tokens[this.current - 1]);
+        if (this.match([TokenType.TRUE])) return new Literal(true);
+        if (this.match([TokenType.FALSE])) return new Literal(false);
+        if (this.match([TokenType.NIL])) return new Literal(null);
+        if (this.match([TokenType.NUMBER, TokenType.STRING])) return new Literal(this.tokens[this.current - 1].literal);
         if (this.match([TokenType.OPEN_PAREN])) {
             let expr: Expr = this.expression();
             this.consume(TokenType.CLOSE_PAREN);
             return new Grouping(expr);
         }
-        if (this.match([TokenType.IDENTIFIER])) return new Primary(this.tokens[this.current - 1], true);
+        if (this.match([TokenType.IDENTIFIER])) return new Variable(this.tokens[this.current - 1]);
         die("parser", "expected expression", this.tokens[this.current].line);
     };
 
