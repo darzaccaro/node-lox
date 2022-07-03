@@ -28,7 +28,7 @@ class Unary {
         if (this.operator === "-") {
             return -this.right.evaluate();
         } else if (this.operator === "!") {
-            return !this.right.evaluate();
+            return !isTruthy(this.right.evaluate());
         }
     };
 }
@@ -183,4 +183,9 @@ export class Parser {
             die("parser", `attempt to consume unexpected token\nexpected: ${type}, actual: ${this.tokens[this.current].type}`, this.tokens[this.current].line);
         }
     };
+}
+
+function isTruthy(v: LiteralValue) {
+    if (typeof v === "boolean") return v;
+    die("", "only booleans have truthiness");
 }
