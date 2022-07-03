@@ -41,7 +41,9 @@ function run(source: string) {
     console.log("scanning source...");
     const tokens = scan(source);
     console.log("parsing tokens...");
-    console.log("tokens", tokens);
     const parser = new Parser(tokens);
-    console.log(parser.expression().toString());
+    console.log("evaluating expression...");
+    const expr = parser.expression();
+
+    console.log(expr.toString(), expr.evaluate());
 }

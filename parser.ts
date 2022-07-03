@@ -3,13 +3,17 @@ import { TokenType } from "./tokens";
 import { die } from "./die";
 
 type Expr = Literal | Unary | Binary | Grouping;
+type LiteralValue = string | number | true | false | null;
 
 class Literal {
-    value: string | number | true | false | null;
-    constructor(value: string | number | true | false | null) {
+    value: LiteralValue;
+    constructor(value: LiteralValue) {
         this.value = value;
     }
     toString = (): string => `${this.value}`;
+    evaluate = (): LiteralValue => {
+        return this.value;
+    };
 }
 
 class Unary {
@@ -20,6 +24,13 @@ class Unary {
         this.right = right;
     }
     toString = (): string => `(${this.operator} ${this.right.toString()})`;
+    evaluate = (): LiteralValue => {
+        if (this.operator === "-") {
+            return -this.right.evaluate();
+        } else if (this.operator === "!") {
+            return !this.right.evaluate();
+        }
+    };
 }
 class Binary {
     left: Expr;
@@ -31,6 +42,29 @@ class Binary {
         this.right = right;
     }
     toString = (): string => `(${this.left.toString()} ${this.operator} ${this.right.toString()})`;
+    evaluate = (): LiteralValue => {
+        if (this.operator === "==") {
+            return this.left.evaluate() === this.right.evaluate();
+        } else if (this.operator === "!=") {
+            return this.left.evaluate() !== this.right.evaluate();
+        } else if (this.operator === "<") {
+            return this.left.evaluate() < this.right.evaluate();
+        } else if (this.operator === "<=") {
+            return this.left.evaluate() <= this.right.evaluate();
+        } else if (this.operator === ">") {
+            return this.left.evaluate() > this.right.evaluate();
+        } else if (this.operator === ">=") {
+            return this.left.evaluate() >= this.right.evaluate();
+        } else if (this.operator === "+") {
+            return (this.left.evaluate() as number) + (this.right.evaluate() as number);
+        } else if (this.operator === "-") {
+            return (this.left.evaluate() as number) - (this.right.evaluate() as number);
+        } else if (this.operator === "*") {
+            return (this.left.evaluate() as number) * (this.right.evaluate() as number);
+        } else if (this.operator === "/") {
+            return (this.left.evaluate() as number) / (this.right.evaluate() as number);
+        }
+    };
 }
 class Grouping {
     open = "(";
@@ -40,6 +74,9 @@ class Grouping {
         this.expr = expr;
     }
     toString = (): string => `(${this.expr.toString()})`;
+    evaluate = (): LiteralValue => {
+        return this.expr.evaluate();
+    };
 }
 
 /* BNF grammar:
@@ -117,6 +154,7 @@ export class Parser {
             this.consume(TokenType.CLOSE_PAREN);
             return new Grouping(expr);
         }
+        die("parser", "expected expression", this.tokens[this.current].line);
     };
 
     match = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
