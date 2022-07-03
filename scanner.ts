@@ -21,6 +21,7 @@ export function scan(source: string): Token[] {
         WHILE: "while",
     };
     const tokens: Token[] = [];
+    const identifiers: string[] = [];
     let line = 1;
     for (let i = 0; i < source.length; ) {
         let length = 1;
@@ -128,13 +129,25 @@ export function scan(source: string): Token[] {
                 } else if (isAlpha(source[i])) {
                     let ii = i;
                     for (; isAlphaNumeric(source[ii]); ii++) {}
-                    const literal = source.slice(i, ii);
-                    length = literal.length;
-                    if (keywords[literal.toUpperCase()]) {
-                        tokens.push({ type: keywords[literal.toUpperCase()] as TokenType, line });
+                    const lexeme = source.slice(i, ii);
+                    length = lexeme.length;
+                    if (keywords[lexeme.toUpperCase()] === keywords["TRUE"]) {
+                        tokens.push({ type: keywords[lexeme.toUpperCase()] as TokenType, literal: true, line });
+                    } else if (keywords[lexeme.toUpperCase()] === keywords["FALSE"]) {
+                        tokens.push({ type: keywords[lexeme.toUpperCase()] as TokenType, literal: false, line });
+                    } else if (keywords[lexeme.toUpperCase()] === keywords["NIL"]) {
+                        tokens.push({ type: keywords[lexeme.toUpperCase()] as TokenType, literal: null, line });
+                    } else if (keywords[lexeme.toUpperCase()]) {
+                        tokens.push({ type: keywords[lexeme.toUpperCase()] as TokenType, line });
                     } else {
-                        die("scanner", "failed to scan token", line);
-                        process.exit(65);
+                        // TODO support scanning of var identifiers
+                        if (tokens[tokens.length - 1].type === TokenType.VAR || identifiers.find((name: string) => name === lexeme)) {
+                            if (!identifiers.find((name: string) => name === lexeme)) identifiers.push(lexeme);
+                            tokens.push({ type: TokenType.IDENTIFIER, lexeme, line });
+                        } else {
+                            die("scanner", "failed to scan token", line);
+                            process.exit(65);
+                        }
                     }
                 } else {
                     die("scanner", "failed to scan token", line);

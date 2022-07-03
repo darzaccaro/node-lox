@@ -1,2 +1,6 @@
-!(1 + 2 == 3);
-print "hi there";
+var drink = "coffee";
+print drink;
+var one = 1;
+var two = 2;
+var math = one + two;
+print math;

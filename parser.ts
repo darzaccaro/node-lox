@@ -1,10 +1,43 @@
 import type { Token } from "./tokens";
 import { TokenType } from "./tokens";
 import { die } from "./die";
+import { Environment } from "./runtime";
 
+const environment = new Environment();
+
+type Decl = VarDecl | Stmt;
 type Stmt = ExprStmt | PrintStmt;
-type Expr = Literal | Unary | Binary | Grouping;
-type LiteralValue = string | number | true | false | null;
+type Expr = Primary | Unary | Binary | Grouping;
+export type LiteralValue = string | number | true | false | null;
+
+class VarDecl {
+    keyword = "var";
+    name: string;
+    operator?: "=";
+    initializer?: Expr;
+    ending = ";";
+    constructor(identifier: string, initializer?: Expr) {
+        this.name = identifier;
+        if (initializer) {
+            this.operator = "=";
+            this.initializer = initializer;
+        }
+    }
+    toString = (): string => {
+        const decl = `${this.keyword} ${this.name}`;
+        const initializer = this.operator ? ` ${this.operator} ${this.initializer}` : "";
+        const end = `${this.ending}`;
+        return decl + initializer + end;
+    };
+    evaluate = (): null => {
+        let value = null;
+        if (this.initializer) {
+            value = this.initializer.evaluate();
+        }
+        environment.define(this.name, value);
+        return null;
+    };
+}
 
 class ExprStmt {
     expression: Expr;
@@ -33,14 +66,18 @@ class PrintStmt {
     };
 }
 
-class Literal {
-    value: LiteralValue;
-    constructor(value: LiteralValue) {
-        this.value = value;
+class Primary {
+    token: Token;
+    constructor(token: Token, isIdentifier = false) {
+        this.token = token;
     }
-    toString = (): string => `${this.value}`;
+    toString = (): string => `${this.token.literal}`;
     evaluate = (): LiteralValue => {
-        return this.value;
+        if (this.token.type === TokenType.IDENTIFIER) {
+            return environment.get(this.token);
+        } else {
+            return this.token.literal;
+        }
     };
 }
 
@@ -108,7 +145,9 @@ class Grouping {
 }
 
 /* BNF grammar:
- * program -> statement* EOF;
+ * program -> declaration* EOF;
+ * declaration -> varDecl | statement;
+ * varDecl -> "var" IDENTIFIER ("=" expression )? ";";
  * statement -> exprStmt | printStmt;
  * exprStmt -> expression ";";
  * printStmt -> "print" expression ";";
@@ -118,7 +157,7 @@ class Grouping {
  * term -> factor (('-' | '+') factor)*;
  * factor -> unary (('/' | '*') unary)*;
  * unary -> ("-" | "!") (unary | primary);
- * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')';
+ * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')' | IDENTIFIER;
  */
 
 export class Parser {
@@ -128,12 +167,27 @@ export class Parser {
         this.tokens = tokens;
         this.current = 0;
     }
-    parse = (): Stmt[] => {
-        const statements = [];
+    parse = (): Decl[] => {
+        const declarations = [];
         while (!this.isAtEnd()) {
-            statements.push(this.statement());
+            declarations.push(this.declaration());
         }
-        return statements;
+        return declarations;
+    };
+    declaration = (): Decl => {
+        if (this.match([TokenType.VAR])) {
+            return this.varDeclaration();
+        }
+        return this.statement();
+    };
+    varDeclaration = (): Decl => {
+        const token = this.consume(TokenType.IDENTIFIER);
+        let initializer = null;
+        if (this.match([TokenType.EQUAL])) {
+            initializer = this.expression();
+        }
+        this.consume(TokenType.SEMICOLON);
+        return new VarDecl(token.lexeme, initializer);
     };
     statement = (): Stmt => {
         if (this.match([TokenType.PRINT])) {
@@ -200,15 +254,16 @@ export class Parser {
     };
 
     primary = (): Expr => {
-        if (this.match([TokenType.TRUE])) return new Literal(true);
-        if (this.match([TokenType.FALSE])) return new Literal(false);
-        if (this.match([TokenType.NIL])) return new Literal(null);
-        if (this.match([TokenType.NUMBER, TokenType.STRING])) return new Literal(this.tokens[this.current - 1].literal);
+        if (this.match([TokenType.TRUE])) return new Primary(this.tokens[this.current - 1]);
+        if (this.match([TokenType.FALSE])) return new Primary(this.tokens[this.current - 1]);
+        if (this.match([TokenType.NIL])) return new Primary(this.tokens[this.current - 1]);
+        if (this.match([TokenType.NUMBER, TokenType.STRING])) return new Primary(this.tokens[this.current - 1]);
         if (this.match([TokenType.OPEN_PAREN])) {
             let expr: Expr = this.expression();
             this.consume(TokenType.CLOSE_PAREN);
             return new Grouping(expr);
         }
+        if (this.match([TokenType.IDENTIFIER])) return new Primary(this.tokens[this.current - 1], true);
         die("parser", "expected expression", this.tokens[this.current].line);
     };
 
@@ -233,7 +288,9 @@ export class Parser {
 
     consume = (type: Exclude<TokenType, TokenType.EOF>) => {
         if (this.tokens[this.current].type === type) {
+            const token = this.tokens[this.current];
             this.advance();
+            return token;
         } else {
             die("parser", `attempt to consume unexpected token\nexpected: ${type}, actual: ${this.tokens[this.current].type}`, this.tokens[this.current].line);
         }

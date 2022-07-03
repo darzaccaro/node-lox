@@ -42,9 +42,9 @@ function run(source: string) {
     const tokens = scan(source);
     console.log("parsing tokens...");
     const parser = new Parser(tokens);
-    console.log("evaluating expression...");
-    const statements = parser.parse();
-    for (const statement of statements) {
-        statement.evaluate();
+    const declarations = parser.parse();
+    console.log("evaluating declarations...");
+    for (const declaration of declarations) {
+        declaration.evaluate();
     }
 }
