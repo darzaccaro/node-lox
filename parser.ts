@@ -1,16 +1,14 @@
 import type { Token } from "./tokens";
 import { TokenType } from "./tokens";
 import { die } from "./die";
-import { Environment } from "./runtime";
+import { Environment } from "./environment";
 
-const environment = new Environment();
-
-type Decl = VarDecl | Stmt;
-type Stmt = ExprStmt | PrintStmt;
+export type Decl = VarDecl | Stmt;
+type Stmt = ExprStmt | PrintStmt | BlockStmt;
 type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment;
 export type LiteralValue = string | number | true | false | null;
 
-class VarDecl {
+export class VarDecl {
     keyword = "var";
     name: string;
     operator?: "=";
@@ -29,12 +27,27 @@ class VarDecl {
         const end = `${this.ending}`;
         return decl + initializer + end;
     };
-    evaluate = (): null => {
+    evaluate = (environment: Environment): null => {
         let value = null;
         if (this.initializer) {
-            value = this.initializer.evaluate();
+            value = this.initializer.evaluate(environment);
         }
         environment.define(this.name, value);
+        return null;
+    };
+}
+
+export class BlockStmt {
+    openDelimiter = "{";
+    statements: Decl[];
+    closeDelimiter = "}";
+    constructor(statements: Decl[]) {
+        this.statements = statements;
+    }
+    toString = (): string => `${this.openDelimiter}\n${this.statements.map((s) => "\t" + s.toString())}\n${this.closeDelimiter}`;
+    evaluate = (environment: Environment): null => {
+        // TODO environment
+        this.statements.forEach((s) => s.evaluate(environment));
         return null;
     };
 }
@@ -46,8 +59,8 @@ class ExprStmt {
         this.expression = expression;
     }
     toString = (): string => `${this.expression}${this.ending}`;
-    evaluate = (): null => {
-        this.expression.evaluate();
+    evaluate = (environment: Environment): null => {
+        this.expression.evaluate(environment);
         return null;
     };
 }
@@ -60,13 +73,13 @@ class PrintStmt {
         this.expression = expression;
     }
     toString = (): string => `${this.keyword}${this.expression}${this.ending}`;
-    evaluate = (): null => {
-        console.log(this.expression.evaluate());
+    evaluate = (environment: Environment): null => {
+        console.log(this.expression.evaluate(environment));
         return null;
     };
 }
 
-class Assignment {
+export class Assignment {
     lvalue: Token;
     operator = "=";
     rvalue: Expr;
@@ -75,8 +88,8 @@ class Assignment {
         this.rvalue = value;
     }
     toString = (): string => `${this.lvalue.toString} ${this.operator} ${this.rvalue.toString()}`;
-    evaluate = (): null => {
-        environment.set(this.lvalue, this.rvalue.evaluate());
+    evaluate = (environment: Environment): null => {
+        environment.set(this.lvalue, this.rvalue.evaluate(environment));
         return null;
     };
 }
@@ -87,7 +100,7 @@ class Literal {
         this.value = value;
     }
     toString = (): string => `${this.value}`;
-    evaluate = (): LiteralValue => {
+    evaluate = (environment: Environment): LiteralValue => {
         return this.value;
     };
 }
@@ -98,7 +111,7 @@ class Variable {
         this.identifier = token;
     }
     toString = (): string => `${this.identifier.lexeme}`;
-    evaluate = (): LiteralValue => {
+    evaluate = (environment: Environment): LiteralValue => {
         return environment.get(this.identifier);
     };
 }
@@ -111,11 +124,11 @@ class Unary {
         this.right = right;
     }
     toString = (): string => `(${this.operator} ${this.right.toString()})`;
-    evaluate = (): LiteralValue => {
+    evaluate = (environment: Environment): LiteralValue => {
         if (this.operator === "-") {
-            return -this.right.evaluate();
+            return -this.right.evaluate(environment);
         } else if (this.operator === "!") {
-            return !isTruthy(this.right.evaluate());
+            return !isTruthy(this.right.evaluate(environment));
         }
     };
 }
@@ -129,27 +142,27 @@ class Binary {
         this.right = right;
     }
     toString = (): string => `(${this.left.toString()} ${this.operator} ${this.right.toString()})`;
-    evaluate = (): LiteralValue => {
+    evaluate = (environment: Environment): LiteralValue => {
         if (this.operator === "==") {
-            return this.left.evaluate() === this.right.evaluate();
+            return this.left.evaluate(environment) === this.right.evaluate(environment);
         } else if (this.operator === "!=") {
-            return this.left.evaluate() !== this.right.evaluate();
+            return this.left.evaluate(environment) !== this.right.evaluate(environment);
         } else if (this.operator === "<") {
-            return this.left.evaluate() < this.right.evaluate();
+            return this.left.evaluate(environment) < this.right.evaluate(environment);
         } else if (this.operator === "<=") {
-            return this.left.evaluate() <= this.right.evaluate();
+            return this.left.evaluate(environment) <= this.right.evaluate(environment);
         } else if (this.operator === ">") {
-            return this.left.evaluate() > this.right.evaluate();
+            return this.left.evaluate(environment) > this.right.evaluate(environment);
         } else if (this.operator === ">=") {
-            return this.left.evaluate() >= this.right.evaluate();
+            return this.left.evaluate(environment) >= this.right.evaluate(environment);
         } else if (this.operator === "+") {
-            return (this.left.evaluate() as number) + (this.right.evaluate() as number);
+            return (this.left.evaluate(environment) as number) + (this.right.evaluate(environment) as number);
         } else if (this.operator === "-") {
-            return (this.left.evaluate() as number) - (this.right.evaluate() as number);
+            return (this.left.evaluate(environment) as number) - (this.right.evaluate(environment) as number);
         } else if (this.operator === "*") {
-            return (this.left.evaluate() as number) * (this.right.evaluate() as number);
+            return (this.left.evaluate(environment) as number) * (this.right.evaluate(environment) as number);
         } else if (this.operator === "/") {
-            return (this.left.evaluate() as number) / (this.right.evaluate() as number);
+            return (this.left.evaluate(environment) as number) / (this.right.evaluate(environment) as number);
         }
     };
 }
@@ -161,26 +174,27 @@ class Grouping {
         this.expr = expr;
     }
     toString = (): string => `(${this.expr.toString()})`;
-    evaluate = (): LiteralValue => {
-        return this.expr.evaluate();
+    evaluate = (environment: Environment): LiteralValue => {
+        return this.expr.evaluate(environment);
     };
 }
 
 /* BNF grammar:
- * program -> declaration* EOF ";"
- * declaration -> varDecl | statement ";"
- * varDecl -> "var" IDENTIFIER ("=" expression )? ";";
- * statement -> assignStmt | printStmt | exprStmt ";"
- * exprStmt -> expression ";";
- * printStmt -> "print" expression ";";
- * expression -> assignment ";"
- * assignment -> IDENTIFIER "=" assignment | equality ";"
- * equality -> comparison (( '==' | '!=') comparison)* ";"
- * comparison -> term (('>' | '>=' | '<' | '<=') term)* ";"
- * term -> factor (('-' | '+') factor)* ";"
- * factor -> unary (('/' | '*') unary)* ";"
- * unary -> ("-" | "!") (unary | primary) ";"
- * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')' | IDENTIFIER ";"
+ * program -> declaration* EOF ;
+ * declaration -> varDecl | statement ;
+ * varDecl -> "var" IDENTIFIER ("=" expression )? ;
+ * statement -> printStmt | exprStmt | block ;
+ * block -> "{" declaration* "}" ;
+ * exprStmt -> expression ;
+ * printStmt -> "print" expression ;
+ * expression -> assignment ;
+ * assignment -> IDENTIFIER "=" assignment | equality ;
+ * equality -> comparison (( '==' | '!=') comparison)* ;
+ * comparison -> term (('>' | '>=' | '<' | '<=') term)* ;
+ * term -> factor (('-' | '+') factor)* ;
+ * factor -> unary (('/' | '*') unary)* ;
+ * unary -> ("-" | "!") (unary | primary) ;
+ * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')' | IDENTIFIER ;
  */
 
 export class Parser {
@@ -198,7 +212,7 @@ export class Parser {
         return declarations;
     };
     declaration = (): Decl => {
-        if (this.matchAny([TokenType.VAR])) {
+        if (this.match([TokenType.VAR])) {
             return this.varDeclaration();
         }
         return this.statement();
@@ -206,17 +220,28 @@ export class Parser {
     varDeclaration = (): Decl => {
         const token = this.consume(TokenType.IDENTIFIER);
         let initializer = null;
-        if (this.matchAny([TokenType.EQUAL])) {
+        if (this.match([TokenType.EQUAL])) {
             initializer = this.expression();
         }
         this.consume(TokenType.SEMICOLON);
         return new VarDecl(token.lexeme, initializer);
     };
     statement = (): Stmt => {
-        if (this.matchAny([TokenType.PRINT])) {
+        if (this.match([TokenType.OPEN_CURLY])) {
+            return new BlockStmt(this.blockStmt());
+        }
+        if (this.match([TokenType.PRINT])) {
             return this.printStmt();
         }
         return this.exprStmt();
+    };
+    blockStmt = (): Decl[] => {
+        const statements: Decl[] = [];
+        while (!this.check(TokenType.CLOSE_CURLY) && !this.isAtEnd()) {
+            statements.push(this.declaration());
+        }
+        this.consume(TokenType.CLOSE_CURLY);
+        return statements;
     };
     printStmt = (): PrintStmt => {
         const expr: Expr = this.expression();
@@ -233,7 +258,7 @@ export class Parser {
     };
     assignment = (): Expr => {
         let expr: Expr = this.equality();
-        if (this.matchAny([TokenType.EQUAL])) {
+        if (this.match([TokenType.EQUAL])) {
             let operator: Token = this.previousToken();
             let value: Expr = this.assignment();
             if (expr instanceof Variable) {
@@ -246,7 +271,7 @@ export class Parser {
     };
     equality = (): Expr => {
         let expr: Expr = this.comparison();
-        while (this.matchAny([TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL])) {
+        while (this.match([TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL])) {
             // @ts-expect-error
             expr = new Binary(expr, this.previousToken().type, this.comparison());
         }
@@ -255,7 +280,7 @@ export class Parser {
 
     comparison = (): Expr => {
         let expr: Expr = this.term();
-        while (this.matchAny([TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESSER, TokenType.LESSER_EQUAL])) {
+        while (this.match([TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESSER, TokenType.LESSER_EQUAL])) {
             // @ts-expect-error
             expr = new Binary(expr, this.previousToken().type, this.term());
         }
@@ -264,7 +289,7 @@ export class Parser {
 
     term = (): Expr => {
         let expr: Expr = this.factor();
-        while (this.matchAny([TokenType.PLUS, TokenType.MINUS])) {
+        while (this.match([TokenType.PLUS, TokenType.MINUS])) {
             // @ts-expect-error
             expr = new Binary(expr, this.previousToken().type, this.factor());
         }
@@ -273,7 +298,7 @@ export class Parser {
 
     factor = (): Expr => {
         let expr: Expr = this.unary();
-        while (this.matchAny([TokenType.FORWARD_SLASH, TokenType.ASTERISK])) {
+        while (this.match([TokenType.FORWARD_SLASH, TokenType.ASTERISK])) {
             // @ts-expect-error
             expr = new Binary(expr, this.previousToken().type, this.unary());
         }
@@ -281,7 +306,7 @@ export class Parser {
     };
 
     unary = (): Expr => {
-        if (this.matchAny([TokenType.BANG, TokenType.MINUS])) {
+        if (this.match([TokenType.BANG, TokenType.MINUS])) {
             // @ts-expect-error
             return new Unary(this.previousToken().type, this.unary());
         }
@@ -289,23 +314,26 @@ export class Parser {
     };
 
     primary = (): Expr => {
-        if (this.matchAny([TokenType.TRUE])) return new Literal(true);
-        if (this.matchAny([TokenType.FALSE])) return new Literal(false);
-        if (this.matchAny([TokenType.NIL])) return new Literal(null);
-        if (this.matchAny([TokenType.NUMBER, TokenType.STRING])) return new Literal(this.previousToken().literal);
-        if (this.matchAny([TokenType.OPEN_PAREN])) {
+        if (this.match([TokenType.TRUE])) return new Literal(true);
+        if (this.match([TokenType.FALSE])) return new Literal(false);
+        if (this.match([TokenType.NIL])) return new Literal(null);
+        if (this.match([TokenType.NUMBER, TokenType.STRING])) return new Literal(this.previousToken().literal);
+        if (this.match([TokenType.OPEN_PAREN])) {
             let expr: Expr = this.expression();
             this.consume(TokenType.CLOSE_PAREN);
             return new Grouping(expr);
         }
-        if (this.matchAny([TokenType.IDENTIFIER])) return new Variable(this.previousToken());
+        if (this.match([TokenType.IDENTIFIER])) return new Variable(this.previousToken());
         die("parser", "expected expression", this.currentToken().line);
     };
 
-    matchAny = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
+    check = (type: TokenType): boolean => {
+        return this.currentToken().type === type;
+    };
+    match = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
         if (this.isAtEnd()) return false;
         for (const type of types) {
-            if (this.currentToken().type === type) {
+            if (this.check(type)) {
                 this.advance();
                 return true;
             }

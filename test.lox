@@ -7,3 +7,8 @@ math = 666;
 print math;
 drink = "yerba";
 print drink;
+{
+    var math = "in scope";
+    print math;
+}
+print math;
