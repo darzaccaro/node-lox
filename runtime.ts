@@ -11,6 +11,13 @@ export class Environment {
         if (token.lexeme in this.values) {
             return this.values[token.lexeme];
         }
-        die("environment", `variable ${token.lexeme} is not defined`, token.line);
+        die("environment", `cannot get variable ${token.lexeme} which is not defined`, token.line);
+    };
+    set = (token: Token, value: LiteralValue): null => {
+        if (token.lexeme in this.values) {
+            this.values[token.lexeme] = value;
+            return null;
+        }
+        die("environment", `cannot set variable ${token.lexeme} which is not defined`, token.line);
     };
 }

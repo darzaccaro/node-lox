@@ -7,7 +7,7 @@ const environment = new Environment();
 
 type Decl = VarDecl | Stmt;
 type Stmt = ExprStmt | PrintStmt;
-type Expr = Literal | Variable | Unary | Binary | Grouping;
+type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment;
 export type LiteralValue = string | number | true | false | null;
 
 class VarDecl {
@@ -62,6 +62,21 @@ class PrintStmt {
     toString = (): string => `${this.keyword}${this.expression}${this.ending}`;
     evaluate = (): null => {
         console.log(this.expression.evaluate());
+        return null;
+    };
+}
+
+class Assignment {
+    lvalue: Token;
+    operator = "=";
+    rvalue: Expr;
+    constructor(identifier: Token, value: Expr) {
+        this.lvalue = identifier;
+        this.rvalue = value;
+    }
+    toString = (): string => `${this.lvalue.toString} ${this.operator} ${this.rvalue.toString()}`;
+    evaluate = (): null => {
+        environment.set(this.lvalue, this.rvalue.evaluate());
         return null;
     };
 }
@@ -152,19 +167,20 @@ class Grouping {
 }
 
 /* BNF grammar:
- * program -> declaration* EOF;
- * declaration -> varDecl | statement;
+ * program -> declaration* EOF ";"
+ * declaration -> varDecl | statement ";"
  * varDecl -> "var" IDENTIFIER ("=" expression )? ";";
- * statement -> exprStmt | printStmt;
+ * statement -> assignStmt | printStmt | exprStmt ";"
  * exprStmt -> expression ";";
  * printStmt -> "print" expression ";";
- * expression -> equality;
- * equality -> comparison (( '==' | '!=') comparison)*;
- * comparison -> term (('>' | '>=' | '<' | '<=') term)*;
- * term -> factor (('-' | '+') factor)*;
- * factor -> unary (('/' | '*') unary)*;
- * unary -> ("-" | "!") (unary | primary);
- * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')' | IDENTIFIER;
+ * expression -> assignment ";"
+ * assignment -> IDENTIFIER "=" assignment | equality ";"
+ * equality -> comparison (( '==' | '!=') comparison)* ";"
+ * comparison -> term (('>' | '>=' | '<' | '<=') term)* ";"
+ * term -> factor (('-' | '+') factor)* ";"
+ * factor -> unary (('/' | '*') unary)* ";"
+ * unary -> ("-" | "!") (unary | primary) ";"
+ * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')' | IDENTIFIER ";"
  */
 
 export class Parser {
@@ -182,7 +198,7 @@ export class Parser {
         return declarations;
     };
     declaration = (): Decl => {
-        if (this.match([TokenType.VAR])) {
+        if (this.matchAny([TokenType.VAR])) {
             return this.varDeclaration();
         }
         return this.statement();
@@ -190,14 +206,14 @@ export class Parser {
     varDeclaration = (): Decl => {
         const token = this.consume(TokenType.IDENTIFIER);
         let initializer = null;
-        if (this.match([TokenType.EQUAL])) {
+        if (this.matchAny([TokenType.EQUAL])) {
             initializer = this.expression();
         }
         this.consume(TokenType.SEMICOLON);
         return new VarDecl(token.lexeme, initializer);
     };
     statement = (): Stmt => {
-        if (this.match([TokenType.PRINT])) {
+        if (this.matchAny([TokenType.PRINT])) {
             return this.printStmt();
         }
         return this.exprStmt();
@@ -213,71 +229,83 @@ export class Parser {
         return new ExprStmt(expr);
     };
     expression = (): Expr => {
-        return this.equality();
+        return this.assignment();
     };
-
+    assignment = (): Expr => {
+        let expr: Expr = this.equality();
+        if (this.matchAny([TokenType.EQUAL])) {
+            let operator: Token = this.previousToken();
+            let value: Expr = this.assignment();
+            if (expr instanceof Variable) {
+                let identifier: Token = expr.identifier;
+                return new Assignment(identifier, value);
+            }
+            die("parser", "invalid assignment target", operator.line);
+        }
+        return expr;
+    };
     equality = (): Expr => {
         let expr: Expr = this.comparison();
-        while (this.match([TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL])) {
+        while (this.matchAny([TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL])) {
             // @ts-expect-error
-            expr = new Binary(expr, this.tokens[this.current - 1].type, this.comparison());
+            expr = new Binary(expr, this.previousToken().type, this.comparison());
         }
         return expr;
     };
 
     comparison = (): Expr => {
         let expr: Expr = this.term();
-        while (this.match([TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESSER, TokenType.LESSER_EQUAL])) {
+        while (this.matchAny([TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESSER, TokenType.LESSER_EQUAL])) {
             // @ts-expect-error
-            expr = new Binary(expr, this.tokens[this.current - 1].type, this.term());
+            expr = new Binary(expr, this.previousToken().type, this.term());
         }
         return expr;
     };
 
     term = (): Expr => {
         let expr: Expr = this.factor();
-        while (this.match([TokenType.PLUS, TokenType.MINUS])) {
+        while (this.matchAny([TokenType.PLUS, TokenType.MINUS])) {
             // @ts-expect-error
-            expr = new Binary(expr, this.tokens[this.current - 1].type, this.factor());
+            expr = new Binary(expr, this.previousToken().type, this.factor());
         }
         return expr;
     };
 
     factor = (): Expr => {
         let expr: Expr = this.unary();
-        while (this.match([TokenType.FORWARD_SLASH, TokenType.ASTERISK])) {
+        while (this.matchAny([TokenType.FORWARD_SLASH, TokenType.ASTERISK])) {
             // @ts-expect-error
-            expr = new Binary(expr, this.tokens[this.current - 1].type, this.unary());
+            expr = new Binary(expr, this.previousToken().type, this.unary());
         }
         return expr;
     };
 
     unary = (): Expr => {
-        if (this.match([TokenType.BANG, TokenType.MINUS])) {
+        if (this.matchAny([TokenType.BANG, TokenType.MINUS])) {
             // @ts-expect-error
-            return new Unary(this.tokens[this.current - 1].type, this.unary());
+            return new Unary(this.previousToken().type, this.unary());
         }
         return this.primary();
     };
 
     primary = (): Expr => {
-        if (this.match([TokenType.TRUE])) return new Literal(true);
-        if (this.match([TokenType.FALSE])) return new Literal(false);
-        if (this.match([TokenType.NIL])) return new Literal(null);
-        if (this.match([TokenType.NUMBER, TokenType.STRING])) return new Literal(this.tokens[this.current - 1].literal);
-        if (this.match([TokenType.OPEN_PAREN])) {
+        if (this.matchAny([TokenType.TRUE])) return new Literal(true);
+        if (this.matchAny([TokenType.FALSE])) return new Literal(false);
+        if (this.matchAny([TokenType.NIL])) return new Literal(null);
+        if (this.matchAny([TokenType.NUMBER, TokenType.STRING])) return new Literal(this.previousToken().literal);
+        if (this.matchAny([TokenType.OPEN_PAREN])) {
             let expr: Expr = this.expression();
             this.consume(TokenType.CLOSE_PAREN);
             return new Grouping(expr);
         }
-        if (this.match([TokenType.IDENTIFIER])) return new Variable(this.tokens[this.current - 1]);
-        die("parser", "expected expression", this.tokens[this.current].line);
+        if (this.matchAny([TokenType.IDENTIFIER])) return new Variable(this.previousToken());
+        die("parser", "expected expression", this.currentToken().line);
     };
 
-    match = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
+    matchAny = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
         if (this.isAtEnd()) return false;
         for (const type of types) {
-            if (this.tokens[this.current].type === type) {
+            if (this.currentToken().type === type) {
                 this.advance();
                 return true;
             }
@@ -285,8 +313,21 @@ export class Parser {
         return false;
     };
 
+    matchSeries = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
+        for (let i = 0; i < types.length; i++) {
+            if (this.isAtEnd()) return false;
+            if (this.currentToken().type === types[i]) {
+                this.advance();
+                continue;
+            }
+            this.current -= i;
+            return false;
+        }
+        return true;
+    };
+
     isAtEnd = (): boolean => {
-        return this.tokens[this.current].type === TokenType.EOF;
+        return this.currentToken().type === TokenType.EOF;
     };
 
     advance = () => {
@@ -294,14 +335,16 @@ export class Parser {
     };
 
     consume = (type: Exclude<TokenType, TokenType.EOF>) => {
-        if (this.tokens[this.current].type === type) {
-            const token = this.tokens[this.current];
+        if (this.currentToken().type === type) {
+            const token = this.currentToken();
             this.advance();
             return token;
         } else {
             die("parser", `attempt to consume unexpected token\nexpected: ${type}, actual: ${this.tokens[this.current].type}`, this.tokens[this.current].line);
         }
     };
+    previousToken = () => this.tokens[this.current - 1];
+    currentToken = () => this.tokens[this.current];
 }
 
 function isTruthy(v: LiteralValue) {

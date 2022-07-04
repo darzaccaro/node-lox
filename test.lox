@@ -3,4 +3,7 @@ print drink;
 var one = 1;
 var two = 2;
 var math = one + two;
+math = 666;
 print math;
+drink = "yerba";
+print drink;
