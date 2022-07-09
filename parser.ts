@@ -4,7 +4,7 @@ import { die } from "./die";
 import { Environment } from "./environment";
 
 export type Decl = VarDecl | Stmt;
-type Stmt = IfStmt | ExprStmt | PrintStmt | BlockStmt;
+type Stmt = ExprStmt | IfStmt | PrintStmt | WhileStmt | BlockStmt;
 type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment | Logical;
 export type LiteralValue = string | number | true | false | null;
 
@@ -82,6 +82,22 @@ class PrintStmt {
     toString = (): string => `print ${this.expression};`;
     evaluate = (environment: Environment): null => {
         console.log(this.expression.evaluate(environment));
+        return null;
+    };
+}
+
+class WhileStmt {
+    expression: Expr;
+    statement: Stmt;
+    constructor(expression: Expr, statement: Stmt) {
+        this.expression = expression;
+        this.statement = statement;
+    }
+    toString = (): string => `while (${this.expression.toString()}) ${this.statement.toString()}`;
+    evaluate = (environment: Environment): null => {
+        while (this.expression.evaluate(environment)) {
+            this.statement.evaluate(environment);
+        }
         return null;
     };
 }
@@ -204,11 +220,12 @@ class Logical {
  * program -> declaration* EOF ;
  * declaration -> varDecl | statement ;
  * varDecl -> "var" IDENTIFIER ("=" expression )? ;
- * statement -> ifStmt | printStmt | exprStmt | block ;
- * block -> "{" declaration* "}" ;
- * ifStmt -> "if" "(" expression ")" statement ("else" statement)? ;
+ * statement -> exprStmt | ifStmt | printStmt | whileStmt | block ;
  * exprStmt -> expression ;
+ * ifStmt -> "if" "(" expression ")" statement ("else" statement)? ;
  * printStmt -> "print" expression ;
+ * whileStmt -> "while" "(" expression ")" statement ;
+ * block -> "{" declaration* "}" ;
  * expression -> assignment ;
  * assignment -> IDENTIFIER "=" assignment | logic_or ;
  * logic_or -> logic_and ("or" logic_and)* ;
@@ -251,6 +268,9 @@ export class Parser {
         return new VarDecl(token.lexeme, initializer);
     };
     statement = (): Stmt => {
+        if (this.match([TokenType.WHILE])) {
+            return this.whileStmt();
+        }
         if (this.match([TokenType.IF])) {
             return this.ifStmt();
         }
@@ -280,6 +300,13 @@ export class Parser {
         }
         this.consume(TokenType.CLOSE_CURLY);
         return new BlockStmt(statements);
+    };
+    whileStmt = (): WhileStmt => {
+        this.consume(TokenType.OPEN_PAREN);
+        const expr: Expr = this.expression();
+        this.consume(TokenType.CLOSE_PAREN);
+        const stmt: Stmt = this.statement();
+        return new WhileStmt(expr, stmt);
     };
     printStmt = (): PrintStmt => {
         const expr: Expr = this.expression();

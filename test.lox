@@ -44,3 +44,10 @@ if (true and false) {
 
 var s = false or "hi";
 print s;
+
+
+var i = 0;
+while (i < 10) {
+    i = i + 1;
+    print i;
+}
