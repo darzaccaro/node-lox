@@ -5,7 +5,7 @@ import { Environment } from "./environment";
 
 export type Decl = VarDecl | Stmt;
 type Stmt = IfStmt | ExprStmt | PrintStmt | BlockStmt;
-type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment;
+type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment | Logical;
 export type LiteralValue = string | number | true | false | null;
 
 export class VarDecl {
@@ -182,6 +182,23 @@ class Grouping {
         return this.expr.evaluate(environment);
     };
 }
+class Logical {
+    left: Expr;
+    operator: "and" | "or";
+    right: Expr;
+    constructor(left: Expr, operator: "and" | "or", right: Expr) {
+        this.left = left;
+        this.operator = operator;
+        this.right = right;
+    }
+    toString = (): string => `${this.left.toString()} ${this.operator} ${this.right.toString()}`;
+    evaluate = (environment: Environment): LiteralValue => {
+        const left = this.left.evaluate(environment);
+        if (this.operator === "or" && isTruthy(left)) return left;
+        if (this.operator === "and" && !isTruthy(left)) return left;
+        return this.right.evaluate(environment);
+    };
+}
 
 /* BNF grammar:
  * program -> declaration* EOF ;
@@ -193,7 +210,9 @@ class Grouping {
  * exprStmt -> expression ;
  * printStmt -> "print" expression ;
  * expression -> assignment ;
- * assignment -> IDENTIFIER "=" assignment | equality ;
+ * assignment -> IDENTIFIER "=" assignment | logic_or ;
+ * logic_or -> logic_and ("or" logic_and)* ;
+ * logic_and -> equality ("and" equality)* ;
  * equality -> comparison (( '==' | '!=') comparison)* ;
  * comparison -> term (('>' | '>=' | '<' | '<=') term)* ;
  * term -> factor (('-' | '+') factor)* ;
@@ -276,7 +295,7 @@ export class Parser {
         return this.assignment();
     };
     assignment = (): Expr => {
-        let expr: Expr = this.equality();
+        let expr: Expr = this.logicOr();
         if (this.match([TokenType.EQUAL])) {
             let operator: Token = this.previousToken();
             let value: Expr = this.assignment();
@@ -285,6 +304,22 @@ export class Parser {
                 return new Assignment(identifier, value);
             }
             die("parser", "invalid assignment target", operator.line);
+        }
+        return expr;
+    };
+    logicOr = (): Expr => {
+        let expr: Expr = this.logicAnd();
+        if (this.match([TokenType.OR])) {
+            let right: Expr = this.logicOr();
+            return new Logical(expr, "or", right);
+        }
+        return expr;
+    };
+    logicAnd = (): Expr => {
+        let expr: Expr = this.equality();
+        if (this.match([TokenType.AND])) {
+            let right: Expr = this.logicAnd();
+            return new Logical(expr, "and", right);
         }
         return expr;
     };

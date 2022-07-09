@@ -34,3 +34,13 @@ if (true) {
     }
 }
 
+if (false or false or true and true and !nil) {
+    print "sp";
+}
+
+if (true and false) {
+    print "sp again";
+}
+
+var s = false or "hi";
+print s;
