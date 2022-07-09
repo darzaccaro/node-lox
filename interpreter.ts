@@ -17,5 +17,5 @@ export class Interpreter {
             }
         }
     }
-    // TODO evaluation funcitons should really be defined here...
+    // TODO evaluation functions should really be defined here...
 }

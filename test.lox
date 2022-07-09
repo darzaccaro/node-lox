@@ -12,3 +12,25 @@ print drink;
     print math;
 }
 print math;
+if (false) {
+    print "this should not print";
+} else {
+    print "this should print";
+}
+
+if (true) {
+    print "this should print";
+} else {
+    print "this should not print";
+}
+
+{
+    if (!true) {
+        print "this should not print";
+    } else if (!nil) {
+        print "!nil is truthy";
+    } else {
+        print "this should print";
+    }
+}
+

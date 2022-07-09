@@ -4,29 +4,18 @@ import { die } from "./die";
 import { Environment } from "./environment";
 
 export type Decl = VarDecl | Stmt;
-type Stmt = ExprStmt | PrintStmt | BlockStmt;
+type Stmt = IfStmt | ExprStmt | PrintStmt | BlockStmt;
 type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment;
 export type LiteralValue = string | number | true | false | null;
 
 export class VarDecl {
-    keyword = "var";
     name: string;
-    operator?: "=";
     initializer?: Expr;
-    ending = ";";
     constructor(identifier: string, initializer?: Expr) {
         this.name = identifier;
-        if (initializer) {
-            this.operator = "=";
-            this.initializer = initializer;
-        }
+        this.initializer = initializer;
     }
-    toString = (): string => {
-        const decl = `${this.keyword} ${this.name}`;
-        const initializer = this.operator ? ` ${this.operator} ${this.initializer}` : "";
-        const end = `${this.ending}`;
-        return decl + initializer + end;
-    };
+    toString = (): string => `var ${this.name}${this.initializer ? ` = ${this.initializer.toString()}` : ""};`;
     evaluate = (environment: Environment): null => {
         let value = null;
         if (this.initializer) {
@@ -37,16 +26,37 @@ export class VarDecl {
     };
 }
 
+export class IfStmt {
+    conditional: Expr;
+    statement: Stmt;
+    else?: Stmt;
+
+    constructor(conditional: Expr, statement: Stmt, elseStmt?: Stmt) {
+        this.conditional = conditional;
+        this.statement = statement;
+        this.else = elseStmt;
+    }
+
+    toString = (): string => `if (${this.conditional.toString()}) ${this.statement.toString()} ${this.else ? this.else.toString() : ""}`;
+    evaluate = (environment: Environment): null => {
+        if (isTruthy(this.conditional.evaluate(environment))) {
+            this.statement.evaluate(environment);
+        } else {
+            if (this.else) {
+                this.else.evaluate(environment);
+            }
+        }
+        return null;
+    };
+}
+
 export class BlockStmt {
-    openDelimiter = "{";
     statements: Decl[];
-    closeDelimiter = "}";
     constructor(statements: Decl[]) {
         this.statements = statements;
     }
-    toString = (): string => `${this.openDelimiter}\n${this.statements.map((s) => "\t" + s.toString())}\n${this.closeDelimiter}`;
+    toString = (): string => `{\n${this.statements.map((s) => "\t" + s.toString())}\n}`;
     evaluate = (environment: Environment): null => {
-        // TODO environment
         this.statements.forEach((s) => s.evaluate(environment));
         return null;
     };
@@ -54,11 +64,10 @@ export class BlockStmt {
 
 class ExprStmt {
     expression: Expr;
-    ending = ";";
     constructor(expression: Expr) {
         this.expression = expression;
     }
-    toString = (): string => `${this.expression}${this.ending}`;
+    toString = (): string => `${this.expression};`;
     evaluate = (environment: Environment): null => {
         this.expression.evaluate(environment);
         return null;
@@ -66,13 +75,11 @@ class ExprStmt {
 }
 
 class PrintStmt {
-    keyword = "print";
     expression: Expr;
-    ending = ";";
     constructor(expression: Expr) {
         this.expression = expression;
     }
-    toString = (): string => `${this.keyword}${this.expression}${this.ending}`;
+    toString = (): string => `print ${this.expression};`;
     evaluate = (environment: Environment): null => {
         console.log(this.expression.evaluate(environment));
         return null;
@@ -81,13 +88,12 @@ class PrintStmt {
 
 export class Assignment {
     lvalue: Token;
-    operator = "=";
     rvalue: Expr;
     constructor(identifier: Token, value: Expr) {
         this.lvalue = identifier;
         this.rvalue = value;
     }
-    toString = (): string => `${this.lvalue.toString} ${this.operator} ${this.rvalue.toString()}`;
+    toString = (): string => `${this.lvalue.toString} = ${this.rvalue.toString()}`;
     evaluate = (environment: Environment): null => {
         environment.set(this.lvalue, this.rvalue.evaluate(environment));
         return null;
@@ -167,9 +173,7 @@ class Binary {
     };
 }
 class Grouping {
-    open = "(";
     expr: Expr;
-    close = ")";
     constructor(expr: Expr) {
         this.expr = expr;
     }
@@ -183,8 +187,9 @@ class Grouping {
  * program -> declaration* EOF ;
  * declaration -> varDecl | statement ;
  * varDecl -> "var" IDENTIFIER ("=" expression )? ;
- * statement -> printStmt | exprStmt | block ;
+ * statement -> ifStmt | printStmt | exprStmt | block ;
  * block -> "{" declaration* "}" ;
+ * ifStmt -> "if" "(" expression ")" statement ("else" statement)? ;
  * exprStmt -> expression ;
  * printStmt -> "print" expression ;
  * expression -> assignment ;
@@ -227,21 +232,35 @@ export class Parser {
         return new VarDecl(token.lexeme, initializer);
     };
     statement = (): Stmt => {
+        if (this.match([TokenType.IF])) {
+            return this.ifStmt();
+        }
         if (this.match([TokenType.OPEN_CURLY])) {
-            return new BlockStmt(this.blockStmt());
+            return this.blockStmt();
         }
         if (this.match([TokenType.PRINT])) {
             return this.printStmt();
         }
         return this.exprStmt();
     };
-    blockStmt = (): Decl[] => {
+    ifStmt = (): IfStmt => {
+        this.consume(TokenType.OPEN_PAREN);
+        const cond = this.expression();
+        this.consume(TokenType.CLOSE_PAREN);
+        const then = this.statement();
+        let elseStmt: Stmt = null;
+        if (this.match([TokenType.ELSE])) {
+            elseStmt = this.statement();
+        }
+        return new IfStmt(cond, then, elseStmt);
+    };
+    blockStmt = (): BlockStmt => {
         const statements: Decl[] = [];
         while (!this.check(TokenType.CLOSE_CURLY) && !this.isAtEnd()) {
             statements.push(this.declaration());
         }
         this.consume(TokenType.CLOSE_CURLY);
-        return statements;
+        return new BlockStmt(statements);
     };
     printStmt = (): PrintStmt => {
         const expr: Expr = this.expression();
@@ -341,19 +360,6 @@ export class Parser {
         return false;
     };
 
-    matchSeries = (types: Exclude<TokenType, TokenType.EOF>[]): boolean => {
-        for (let i = 0; i < types.length; i++) {
-            if (this.isAtEnd()) return false;
-            if (this.currentToken().type === types[i]) {
-                this.advance();
-                continue;
-            }
-            this.current -= i;
-            return false;
-        }
-        return true;
-    };
-
     isAtEnd = (): boolean => {
         return this.currentToken().type === TokenType.EOF;
     };
@@ -377,5 +383,6 @@ export class Parser {
 
 function isTruthy(v: LiteralValue) {
     if (typeof v === "boolean") return v;
-    die("", "only booleans have truthiness");
+    if (v === null) return false;
+    die("", "only booleans and nil have truthiness");
 }
