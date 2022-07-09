@@ -95,7 +95,7 @@ class WhileStmt {
     }
     toString = (): string => `while (${this.expression.toString()}) ${this.statement.toString()}`;
     evaluate = (environment: Environment): null => {
-        while (this.expression.evaluate(environment)) {
+        while (isTruthy(this.expression.evaluate(environment))) {
             this.statement.evaluate(environment);
         }
         return null;
@@ -303,10 +303,10 @@ export class Parser {
     };
     whileStmt = (): WhileStmt => {
         this.consume(TokenType.OPEN_PAREN);
-        const expr: Expr = this.expression();
+        const condition: Expr = this.expression();
         this.consume(TokenType.CLOSE_PAREN);
-        const stmt: Stmt = this.statement();
-        return new WhileStmt(expr, stmt);
+        const body: Stmt = this.statement();
+        return new WhileStmt(condition, body);
     };
     printStmt = (): PrintStmt => {
         const expr: Expr = this.expression();
