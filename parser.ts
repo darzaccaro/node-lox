@@ -418,6 +418,5 @@ export class Parser {
 
 function isTruthy(v: LiteralValue) {
     if (typeof v === "boolean") return v;
-    if (v === null) return false;
-    die("", "only booleans and nil have truthiness");
+    return v !== null;
 }
