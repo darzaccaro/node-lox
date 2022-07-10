@@ -87,16 +87,16 @@ class PrintStmt {
 }
 
 class WhileStmt {
-    expression: Expr;
-    statement: Stmt;
-    constructor(expression: Expr, statement: Stmt) {
-        this.expression = expression;
-        this.statement = statement;
+    condition: Expr;
+    body: Stmt;
+    constructor(condition: Expr, body: Stmt) {
+        this.condition = condition;
+        this.body = body;
     }
-    toString = (): string => `while (${this.expression.toString()}) ${this.statement.toString()}`;
+    toString = (): string => `while (${this.condition.toString()}) ${this.body.toString()}`;
     evaluate = (environment: Environment): null => {
-        while (isTruthy(this.expression.evaluate(environment))) {
-            this.statement.evaluate(environment);
+        while (isTruthy(this.condition.evaluate(environment))) {
+            this.body.evaluate(environment);
         }
         return null;
     };
@@ -220,10 +220,11 @@ class Logical {
  * program -> declaration* EOF ;
  * declaration -> varDecl | statement ;
  * varDecl -> "var" IDENTIFIER ("=" expression )? ;
- * statement -> exprStmt | ifStmt | printStmt | whileStmt | block ;
+ * statement -> exprStmt | ifStmt | printStmt | forStmt | whileStmt | block ;
  * exprStmt -> expression ;
  * ifStmt -> "if" "(" expression ")" statement ("else" statement)? ;
  * printStmt -> "print" expression ;
+ * forStmt -> "for" "(" varDecl | exprStmt ";" expression? ";" expression? ")" statement ;
  * whileStmt -> "while" "(" expression ")" statement ;
  * block -> "{" declaration* "}" ;
  * expression -> assignment ;
@@ -268,6 +269,9 @@ export class Parser {
         return new VarDecl(token.lexeme, initializer);
     };
     statement = (): Stmt => {
+        if (this.match([TokenType.FOR])) {
+            return this.forStmt();
+        }
         if (this.match([TokenType.WHILE])) {
             return this.whileStmt();
         }
@@ -300,6 +304,40 @@ export class Parser {
         }
         this.consume(TokenType.CLOSE_CURLY);
         return new BlockStmt(statements);
+    };
+    forStmt = (): Stmt => {
+        this.consume(TokenType.OPEN_PAREN);
+        let initializer: Decl;
+        if (this.match([TokenType.SEMICOLON])) {
+            initializer = null;
+        } else if (this.match([TokenType.VAR])) {
+            initializer = this.varDeclaration();
+        } else {
+            initializer = this.exprStmt();
+        }
+        let condition: Expr;
+        if (!this.check(TokenType.SEMICOLON)) {
+            condition = this.expression();
+        }
+        this.consume(TokenType.SEMICOLON);
+        let increment: Expr;
+        if (!this.check(TokenType.CLOSE_PAREN)) {
+            increment = this.expression();
+        }
+        this.consume(TokenType.CLOSE_PAREN);
+        let body = this.statement();
+        // de-sugar
+        if (!condition) {
+            condition = new Literal(true);
+        }
+        if (increment) {
+            body = new BlockStmt([body, new ExprStmt(increment)]);
+        }
+        body = new WhileStmt(condition, body);
+        if (initializer) {
+            body = new BlockStmt([initializer, body]);
+        }
+        return body;
     };
     whileStmt = (): WhileStmt => {
         this.consume(TokenType.OPEN_PAREN);
