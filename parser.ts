@@ -2,11 +2,13 @@ import type { Token } from "./tokens";
 import { TokenType } from "./tokens";
 import { die } from "./die";
 import { Environment } from "./environment";
+import { Callable } from "./interpreter";
+import { interpreter } from "./main";
 
 export type Decl = VarDecl | Stmt;
 type Stmt = ExprStmt | IfStmt | PrintStmt | WhileStmt | BlockStmt;
-type Expr = Literal | Variable | Unary | Binary | Grouping | Assignment | Logical;
-export type LiteralValue = string | number | true | false | null;
+type Expr = Literal | Variable | Call | Unary | Binary | Grouping | Assignment | Logical;
+export type LiteralValue = string | number | true | false | null | Callable;
 
 export class VarDecl {
     name: string;
@@ -215,6 +217,24 @@ class Logical {
         return this.right.evaluate(environment);
     };
 }
+class Call {
+    callee: Expr;
+    args: Expr[];
+
+    constructor(callee: Expr, args: Expr[]) {
+        this.callee = callee;
+        this.args = args;
+    }
+    toString = (): string => `${this.callee.toString()}(${this.args.map((a) => a.toString())})`;
+    evaluate = (environment: Environment): LiteralValue => {
+        const callee = this.callee.evaluate(environment) as unknown as Callable;
+        const args = this.args.map((a) => a.evaluate(environment));
+        if (args.length !== callee.arity) {
+            die("parser", "incorrect number of args passed to function call");
+        }
+        return callee.call(interpreter, args);
+    };
+}
 
 /* BNF grammar:
  * program -> declaration* EOF ;
@@ -235,7 +255,9 @@ class Logical {
  * comparison -> term (('>' | '>=' | '<' | '<=') term)* ;
  * term -> factor (('-' | '+') factor)* ;
  * factor -> unary (('/' | '*') unary)* ;
- * unary -> ("-" | "!") (unary | primary) ;
+ * unary -> ("-" | "!") (unary | call) ;
+ * call -> primary ( "(" arguments? ")" )* ;
+ * arguments -> expression ("," expression)* ;
  * primary -> NUMBER | STRING | 'true' | 'false' | 'nil' | '(' expression ')' | IDENTIFIER ;
  */
 
@@ -429,8 +451,28 @@ export class Parser {
             // @ts-expect-error
             return new Unary(this.previousToken().type, this.unary());
         }
-        return this.primary();
+        return this.call();
     };
+
+    call = (): Expr => {
+        let expr = this.primary();
+        while (this.match([TokenType.OPEN_PAREN])) {
+            expr = new Call(expr, this.getArgs());
+            this.consume(TokenType.CLOSE_PAREN);
+        }
+        return expr;
+    };
+
+    getArgs(): Expr[] {
+        const args: Expr[] = [];
+        if (!this.check(TokenType.CLOSE_PAREN)) {
+            do {
+                args.push(this.expression());
+            } while (this.match([TokenType.COMMA]));
+        }
+        if (args.length > 255) die("parser", "function call must have fewer than 256 args", this.currentToken().line);
+        return args;
+    }
 
     primary = (): Expr => {
         if (this.match([TokenType.TRUE])) return new Literal(true);

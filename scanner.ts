@@ -21,7 +21,8 @@ export function scan(source: string): Token[] {
         WHILE: "while",
     };
     const tokens: Token[] = [];
-    const identifiers: string[] = [];
+    const nativeFunctions = ["clock"];
+    const identifiers: string[] = [...nativeFunctions];
     let line = 1;
     for (let i = 0; i < source.length; ) {
         let length = 1;
@@ -140,7 +141,6 @@ export function scan(source: string): Token[] {
                     } else if (keywords[lexeme.toUpperCase()]) {
                         tokens.push({ type: keywords[lexeme.toUpperCase()] as TokenType, line });
                     } else {
-                        // TODO support scanning of var identifiers
                         if (tokens[tokens.length - 1].type === TokenType.VAR || identifiers.find((name: string) => name === lexeme)) {
                             if (!identifiers.find((name: string) => name === lexeme)) identifiers.push(lexeme);
                             tokens.push({ type: TokenType.IDENTIFIER, lexeme, line });

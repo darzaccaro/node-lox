@@ -1,6 +1,7 @@
 import { LiteralValue } from "./parser";
 import { die } from "./die";
 import { Token } from "./tokens";
+import { Callable } from "./interpreter";
 
 export class Environment {
     enclosing: Environment;

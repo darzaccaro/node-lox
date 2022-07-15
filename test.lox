@@ -1,3 +1,4 @@
+var start = clock();
 var drink = "coffee";
 print drink;
 var one = 1;
@@ -55,3 +56,9 @@ while (i < 10) {
 for (var i = 10; i > 0; i = i - 1) {
     print i;
 }
+
+var end = clock();
+
+print "script took";
+print end - start;
+print "ms";

@@ -37,7 +37,7 @@ async function runPrompt() {
     }
     rl.close();
 }
-
+export let interpreter: Interpreter;
 function run(source: string) {
     console.log("scanning source...");
     const tokens = scan(source);
@@ -45,6 +45,6 @@ function run(source: string) {
     const parser = new Parser(tokens);
     const program = parser.parse();
     console.log("interpreting program...");
-    const interpreter = new Interpreter(program);
+    interpreter = new Interpreter(program);
     interpreter.interpret();
 }
